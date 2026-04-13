@@ -1,0 +1,1426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Figma Mockup Local</title>
+<link rel ="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="app">
+<div id="sidebar">
+  <div id="sidebar-header">Layers</div>
+  <div id="layer-list"><div style="padding:20px 12px;font-size:12px;color:var(--color-text-tertiary);text-align:center;line-height:1.8">No elements yet.<br>Draw a textbox.</div></div>
+</div>
+<div id="main">
+  <div id="toolbar">
+    <button class="tbtn" id="btn-select" onclick="setTool('s')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2l10 6-5 1.5L6 14z"/></svg>Select
+    </button>
+    <button class="tbtn active" id="btn-textbox" onclick="setTool('t')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1"/><line x1="5" y1="7" x2="11" y2="7"/><line x1="5" y1="9.5" x2="9" y2="9.5"/></svg>Textbox
+    </button>
+    <button class="tbtn" id="btn-dark" onclick="toggleDarkMode()" title="Toggle dark mode">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4"/></svg>Theme
+    </button>
+    <div style="flex:1"></div>
+    <button class="tbtn" id="btn-del" onclick="deleteSelected()" style="display:none;color:var(--color-text-danger)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M7 8v4M9 8v4"/></svg>Delete
+    </button>
+  </div>
+  <div style="display:flex;flex:1;overflow:hidden">
+    <div id="cw"><div id="cv" class="mode-t"><div id="ghost"></div><div id="selbox"></div></div></div>
+    <div id="rp">
+      <div id="rp-single" class="rps" style="display:none">
+        <div class="rpt">Size & Position</div>
+        <div class="pr"><span class="pl">W</span><input class="pi" type="number" id="pw" onchange="applyP('w',this.value)"></div>
+        <div class="pr"><span class="pl">H</span><input class="pi" type="number" id="ph" onchange="applyP('h',this.value)"></div>
+        <div class="pr"><span class="pl">X</span><input class="pi" type="number" id="px" onchange="applyP('x',this.value)"></div>
+        <div class="pr"><span class="pl">Y</span><input class="pi" type="number" id="py" onchange="applyP('y',this.value)"></div>
+      </div>
+      <div id="rp-multi" class="rps" style="display:none">
+        <div class="rpt">Auto Layout</div>
+        <button class="lbtn" onclick="autoLayout('row')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="4" height="8" rx="1"/><rect x="6" y="4" width="4" height="8" rx="1"/><rect x="11" y="4" width="4" height="8" rx="1"/></svg>
+          Row <span style="margin-left:auto;opacity:.5"><kbd>⌘R</kbd></span>
+        </button>
+        <button class="lbtn" onclick="autoLayout('col')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="1" width="8" height="4" rx="1"/><rect x="4" y="6" width="8" height="4" rx="1"/><rect x="4" y="11" width="8" height="4" rx="1"/></svg>
+          Col <span style="margin-left:auto;opacity:.5"><kbd>⌘C</kbd></span>
+        </button>
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px" id="mc"></div>
+      </div>
+      <div class="hb" id="rp-hint">
+        <div style="font-weight:500;color:var(--color-text-secondary);margin-bottom:4px">Short Keys</div>
+        <div><kbd>T</kbd> textbox &nbsp;<kbd>V</kbd> select</div>
+        <div><kbd>⌘R</kbd> row &nbsp;<kbd>⌘C</kbd> col</div>
+        <div><kbd>Del</kbd> delete</div>
+        <div><kbd>⌘↵</kbd> rename</div>
+        <div style="margin-top:4px;font-size:10px;opacity:.7">*name = magenta</div>
+        <button class="mini-btn" onclick="resetLocalData()">Reset Local Data</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const cv=document.getElementById('cv'),cw=document.getElementById('cw');
+const ghost=document.getElementById('ghost'),selbox=document.getElementById('selbox');
+
+// State
+let elems=[], frames=[], eid=0, fid=0;
+let selIds=new Set(), selFid=null;
+let drawing=false, drawSt=null;
+let dragging=null, dragSt={};
+let dragFr=null, dragFrOff={};
+let selecting=false, selSt=null;
+let renaming=null;
+let persistTimer=null, lastSavedState='';
+let instanceMenuEl=null;
+
+const GAP=8, PAD=12, TW=100, TH=40;
+const STORAGE_KEY='figma-mockup-state-v1';
+const THEME_KEY='figma-mockup-theme-v1';
+
+function isSpecial(n){return/^\*/.test(n||'');}
+function dispName(n){return(n||'').replace(/^\*/,'');}
+
+// ── tool ─────────────────────────────────────────────────────────────
+window.setTool=function setTool(t){
+  document.getElementById('btn-select').classList.toggle('active',t==='s');
+  document.getElementById('btn-textbox').classList.toggle('active',t==='t');
+  cv.className='mode-'+(t==='t'?'t':'s');
+  window._tool=t;
+}
+window.getTool=function getTool(){return window._tool||'t';}
+setTool('t');
+
+function gp(e){const r=cw.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+
+function setTheme(theme){
+  const isDark=theme==='dark';
+  document.body.classList.toggle('dark-mode',isDark);
+  const btn=document.getElementById('btn-dark');
+  if(btn)btn.classList.toggle('active',isDark);
+}
+
+function toggleDarkMode(){
+  const next=document.body.classList.contains('dark-mode')?'light':'dark';
+  setTheme(next);
+  try{localStorage.setItem(THEME_KEY,next);}catch(err){}
+}
+
+function restoreTheme(){
+  let saved='light';
+  try{saved=localStorage.getItem(THEME_KEY)||'light';}catch(err){}
+  setTheme(saved==='dark'?'dark':'light');
+}
+
+function serializeState(){
+  return JSON.stringify({elems,frames,eid,fid});
+}
+
+function saveStateNow(){
+  try{
+    const next=serializeState();
+    if(next===lastSavedState)return;
+    localStorage.setItem(STORAGE_KEY,next);
+    lastSavedState=next;
+  }catch(err){}
+}
+
+function scheduleSaveState(){
+  if(persistTimer)clearTimeout(persistTimer);
+  persistTimer=setTimeout(()=>{
+    persistTimer=null;
+    saveStateNow();
+  },120);
+}
+
+function restoreState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw)return;
+    const data=JSON.parse(raw);
+    if(!data||!Array.isArray(data.elems)||!Array.isArray(data.frames))return;
+
+    elems=data.elems;
+    frames=data.frames;
+    eid=typeof data.eid==='number'?data.eid:0;
+    fid=typeof data.fid==='number'?data.fid:0;
+
+    document.querySelectorAll('.tb,.fr').forEach(el=>el.remove());
+    elems.forEach(o=>renderEl(o,false));
+    frames.forEach(f=>{
+      const fel=document.createElement('div');
+      fel.className='fr';
+      fel.id='fr-'+f.id;
+      fel.dataset.fid=f.id;
+      fel.style.left=f.x+'px';
+      fel.style.top=f.y+'px';
+      fel.style.width=f.w+'px';
+      fel.style.height=f.h+'px';
+      fel.innerHTML=`<div class="fr-label" id="frlbl-${f.id}">${f.name||('Frame '+f.id)}</div>`;
+      cv.insertBefore(fel, cv.firstChild);
+    });
+    updateSelVis();
+    updateLayers();
+    updateRP();
+    lastSavedState=serializeState();
+  }catch(err){}
+}
+
+function resetLocalData(){
+  const ok=window.confirm('Clear saved local data and reset the canvas?');
+  if(!ok)return;
+
+  localStorage.removeItem(STORAGE_KEY);
+  elems=[];frames=[];eid=0;fid=0;
+  selIds.clear();selFid=null;
+  drawing=false;drawSt=null;
+  dragging=null;dragSt={};
+  dragFr=null;dragFrOff={};
+  selecting=false;selSt=null;
+  renaming=null;
+  lastSavedState='';
+
+  document.querySelectorAll('.tb,.fr').forEach(el=>el.remove());
+  ghost.style.display='none';
+  selbox.style.display='none';
+  updateSelVis();
+  updateLayers();
+  updateRP();
+}
+
+// ── helpers ───────────────────────────────────────────────────────────
+function getEl(id){return elems.find(o=>o.id===id);}
+function getFr(id){return frames.find(f=>f.id===id);}
+// parent frame of a child (elem id or frame id)
+function parentOf(childId, isFrame){
+  return frames.find(f=>f.children.some(c=>c.id===childId&&c.isFrame===!!isFrame));
+}
+// top-most ancestor frame
+function topAncestor(fid){
+  let f=getFr(fid);
+  while(f){
+    const p=parentOf(f.id,true);
+    if(!p)return f;
+    f=p;
+  }
+  return f;
+}
+// collect all special elems under a frame (recursively)
+function collectSpecial(f){
+  let result=[];
+  f.children.forEach(c=>{
+    if(c.isFrame){
+      const cf=getFr(c.id);
+      if(cf)result=result.concat(collectSpecial(cf));
+    } else {
+      const o=getEl(c.id);
+      if(o&&isSpecial(o.name))result.push(o);
+    }
+  });
+  return result;
+}
+
+function buildInstanceValues(specials, fallbackValues){
+  const values={};
+  specials.forEach(o=>{
+    values[o.id]=fallbackValues&&fallbackValues[o.id]!=null?fallbackValues[o.id]:o.text;
+  });
+  return values;
+}
+
+function ensureFrameAstData(f, specials){
+  if(!f.ast||!Array.isArray(f.ast.instances)){
+    f.ast={selected:0,instances:[{name:'instance0',values:buildInstanceValues(specials)}]};
+  }
+  if(!f.ast.instances.length){
+    f.ast.instances.push({name:'instance0',values:buildInstanceValues(specials)});
+  }
+  const idSet=new Set(specials.map(o=>o.id));
+  f.ast.instances.forEach((inst,idx)=>{
+    if(!inst.name)inst.name='instance'+idx;
+    if(!inst.values)inst.values={};
+    specials.forEach(o=>{
+      if(inst.values[o.id]==null)inst.values[o.id]=o.text;
+    });
+    Object.keys(inst.values).forEach(k=>{
+      if(!idSet.has(+k))delete inst.values[k];
+    });
+  });
+  if(typeof f.ast.selected!=='number'||f.ast.selected<0||f.ast.selected>=f.ast.instances.length){
+    f.ast.selected=0;
+  }
+}
+
+function applyFrameAstInstance(f){
+  const specials=collectSpecial(f);
+  if(!specials.length)return;
+  ensureFrameAstData(f,specials);
+  const inst=f.ast.instances[f.ast.selected];
+  const resolvedMap=computeFrameAstResolvedValues(f,specials,inst);
+  specials.forEach(o=>{
+    const val=resolvedMap[o.id]!=null?resolvedMap[o.id]:'';
+    o.text=val;
+    const ta=document.querySelector('#el-'+o.id+' textarea');
+    if(ta)ta.value=val;
+  });
+}
+
+function addFrameAstInstance(f,specials){
+  ensureFrameAstData(f,specials);
+  const source=f.ast.instances[f.ast.selected]||f.ast.instances[f.ast.instances.length-1];
+  const idx=f.ast.instances.length;
+  f.ast.instances.push({name:'instance'+idx,values:buildInstanceValues(specials,source?source.values:null)});
+}
+
+function deleteFrameAstInstance(f, instIdx){
+  const specials=collectSpecial(f);
+  if(!specials.length)return;
+  ensureFrameAstData(f,specials);
+  if(instIdx<=0)return; // Keep instance0 as formula/template source.
+  if(instIdx>=f.ast.instances.length)return;
+  if(f.ast.instances.length<=1)return;
+
+  f.ast.instances.splice(instIdx,1);
+  if(f.ast.selected===instIdx){
+    f.ast.selected=Math.max(0, instIdx-1);
+  }else if(f.ast.selected>instIdx){
+    f.ast.selected-=1;
+  }
+  applyFrameAstInstance(f);
+  refreshAstOverlays();
+  scheduleSaveState();
+}
+
+function hideInstanceMenu(){
+  if(instanceMenuEl&&instanceMenuEl.parentNode){
+    instanceMenuEl.parentNode.removeChild(instanceMenuEl);
+  }
+  instanceMenuEl=null;
+}
+
+function handleInstanceMenuOutsideClick(e){
+  if(instanceMenuEl&&instanceMenuEl.contains(e.target))return;
+  hideInstanceMenu();
+}
+
+function showInstanceMenu(e,f,instIdx){
+  if(instIdx<=0)return;
+  hideInstanceMenu();
+  const canDelete=instIdx>0&&f.ast&&Array.isArray(f.ast.instances)&&f.ast.instances.length>1;
+
+  const menu=document.createElement('div');
+  menu.style.position='fixed';
+  menu.style.left=e.clientX+'px';
+  menu.style.top=e.clientY+'px';
+  menu.style.zIndex='9999';
+  menu.style.background='#fff';
+  menu.style.border='1px solid rgba(0,0,0,0.16)';
+  menu.style.borderRadius='6px';
+  menu.style.boxShadow='0 8px 20px rgba(0,0,0,0.12)';
+  menu.style.padding='6px';
+
+  const delBtn=document.createElement('button');
+  delBtn.type='button';
+  delBtn.textContent='Delete instance';
+  delBtn.style.border='0';
+  delBtn.style.background='transparent';
+  delBtn.style.color=canDelete?'#b91c1c':'#9ca3af';
+  delBtn.style.fontSize='12px';
+  delBtn.style.padding='5px 8px';
+  delBtn.style.cursor=canDelete?'pointer':'not-allowed';
+  delBtn.style.borderRadius='4px';
+  if(canDelete){
+    delBtn.addEventListener('click',()=>{
+      hideInstanceMenu();
+      deleteFrameAstInstance(f,instIdx);
+    });
+    delBtn.addEventListener('mouseenter',()=>{delBtn.style.background='rgba(185,28,28,0.08)';});
+    delBtn.addEventListener('mouseleave',()=>{delBtn.style.background='transparent';});
+  }else{
+    delBtn.title=instIdx===0?'instance0 cannot be deleted':'At least one instance is required';
+  }
+
+  menu.appendChild(delBtn);
+  document.body.appendChild(menu);
+  instanceMenuEl=menu;
+
+  const r=menu.getBoundingClientRect();
+  const nextX=Math.min(e.clientX,window.innerWidth-r.width-8);
+  const nextY=Math.min(e.clientY,window.innerHeight-r.height-8);
+  menu.style.left=Math.max(8,nextX)+'px';
+  menu.style.top=Math.max(8,nextY)+'px';
+}
+
+function specialKey(name){
+  return dispName(name).trim().toLowerCase();
+}
+
+function looksLikeFormula(raw){
+  const s=(raw==null?'':String(raw)).trim();
+  return /^f\s*:/i.test(s);
+}
+
+function evalFormulaExpression(raw, refResolver){
+  const txt=String(raw).trim();
+  const expr=txt.replace(/^f\s*:\s*/i,'');
+  const mapped=expr.replace(/\*([A-Za-z_][A-Za-z0-9_]*)/g,(_,k)=>`__ref("${k.toLowerCase()}")`);
+  // Keep this evaluator narrow: arithmetic, refs, and common numeric helpers.
+  if(!/^[0-9A-Za-z_+\-*/%().,\s"']+$/.test(mapped))return '#ERR';
+  try{
+    const fn=new Function('__ref','parseInt','parseFloat','Math','Number',`"use strict";return (${mapped});`);
+    const out=fn(refResolver,parseInt,parseFloat,Math,Number);
+    if(out===null||out===undefined)return '';
+    if(typeof out==='number'&&!isFinite(out))return '#ERR';
+    if(typeof out==='number'&&isNaN(out))return '#ERR';
+    return String(out);
+  }catch(err){
+    return '#ERR';
+  }
+}
+
+function computeFrameAstResolvedValues(f,specials,inst){
+  const keyMap={};
+  specials.forEach(o=>{
+    const k=specialKey(o.name);
+    if(k&&!keyMap[k])keyMap[k]=o;
+  });
+
+  const cache={};
+  const visiting={};
+
+  function resolveElem(o){
+    if(cache[o.id]!=null)return cache[o.id];
+    if(visiting[o.id])return '0';
+    visiting[o.id]=true;
+
+    const raw=inst.values&&inst.values[o.id]!=null?String(inst.values[o.id]):'';
+    let resolved='';
+    if(!looksLikeFormula(raw)){
+      resolved=raw;
+    }else{
+      resolved=evalFormulaExpression(raw,refName=>{
+        const target=keyMap[(refName||'').toLowerCase()];
+        if(!target)return 0;
+        const targetVal=resolveElem(target);
+        const num=parseFloat(targetVal);
+        return isFinite(num)?num:0;
+      });
+    }
+
+    cache[o.id]=resolved;
+    delete visiting[o.id];
+    return resolved;
+  }
+
+  specials.forEach(o=>resolveElem(o));
+  return cache;
+}
+
+function getAstDisplayValue(rawValue, resolvedValue){
+  if(looksLikeFormula(rawValue))return resolvedValue!=null?String(resolvedValue):'';
+  return rawValue!=null?String(rawValue):'';
+}
+
+// Check if instance0 has a formula for a given element
+function instance0HasFormula(f, elemId){
+  if(!f.ast||!f.ast.instances.length)return false;
+  const inst0=f.ast.instances[0];
+  if(!inst0.values)return false;
+  const rawVal=String(inst0.values[elemId]||'');
+  return looksLikeFormula(rawVal);
+}
+// measure elem on canvas
+function measureEl(id){
+  const el=document.getElementById('el-'+id);
+  const o=getEl(id);
+  if(el&&o){o.w=el.offsetWidth;o.h=el.offsetHeight;}
+  return o;
+}
+// measure frame on canvas
+function measureFr(id){
+  const el=document.getElementById('fr-'+id);
+  const f=getFr(id);
+  if(el&&f){f.w=el.offsetWidth;f.h=el.offsetHeight;}
+  return f;
+}
+// get bounding box of a child (elem or frame)
+function childBBox(c){
+  if(c.isFrame){const f=getFr(c.id);return f?{x:f.x,y:f.y,w:f.w,h:f.h}:null;}
+  else{const o=getEl(c.id);if(!o)return null;const el=document.getElementById('el-'+o.id);const w=el?el.offsetWidth:o.w;const h=el?el.offsetHeight:o.h;return{x:o.x,y:o.y,w,h};}
+}
+
+function setElemSize(o,w,h){
+  if(!o)return;
+  if(typeof w==='number'&&w>0)o.w=w;
+  if(typeof h==='number'&&h>0)o.h=h;
+  const el=document.getElementById('el-'+o.id);
+  if(!el)return;
+  if(typeof w==='number'&&w>0)el.style.width=o.w+'px';
+  if(typeof h==='number'&&h>0)el.style.height=o.h+'px';
+  const ta=el.querySelector('textarea');
+  if(ta){
+    if(typeof w==='number'&&w>0)ta.style.width=o.w+'px';
+    if(typeof h==='number'&&h>0)ta.style.height=o.h+'px';
+    updateTextboxVerticalCenter(o);
+  }
+}
+
+function updateTextboxVerticalCenter(o){
+  if(!o)return;
+  const ta=document.querySelector('#el-'+o.id+' textarea');
+  if(!ta)return;
+  const lineH=Math.max(16,Math.round(o.h)-8);
+  ta.style.lineHeight=lineH+'px';
+}
+
+// ── reflow ────────────────────────────────────────────────────────────
+function reflowFrame(fId, anchorX, anchorY){
+  const f=getFr(fId);if(!f)return;
+  const ax=anchorX!==undefined?anchorX:f.x+PAD;
+  const ay=anchorY!==undefined?anchorY:f.y+PAD;
+
+  // first recursively reflow child frames so we know their sizes
+  f.children.forEach(c=>{
+    if(c.isFrame)reflowFrame(c.id); // reflow inner, then we'll reposition
+  });
+
+  // now lay out children
+  let cursor=0;
+  if(f.dir==='row'){
+    let maxH=0;
+    f.children.forEach(c=>{
+      const bb=childBBox(c);if(!bb)return;
+      maxH=Math.max(maxH,bb.h);
+    });
+    f.children.forEach(c=>{
+      const bb=childBBox(c);if(!bb)return;
+      const cx=ax+cursor,cy=ay;
+      if(c.isFrame){
+        const cf=getFr(c.id);if(!cf)return;
+        const dx=cx-cf.x,dy=cy-cf.y;
+        shiftFrame(cf.id,dx,dy);
+      } else {
+        const o=getEl(c.id);if(!o)return;
+        o.x=cx;o.y=cy;
+        // In row layout, stretch text children to fill frame height.
+        setElemSize(o,null,maxH);
+        const el=document.getElementById('el-'+o.id);
+        if(el){el.style.left=cx+'px';el.style.top=cy+'px';}
+      }
+      cursor+=bb.w+GAP;
+    });
+    const totalW=cursor>0?cursor-GAP:0;
+    const totalH=maxH;
+    f.x=ax-PAD;f.y=ay-PAD;f.w=totalW+PAD*2;f.h=totalH+PAD*2;
+  } else {
+    let maxW=0;
+    f.children.forEach(c=>{const bb=childBBox(c);if(bb)maxW=Math.max(maxW,bb.w);});
+    f.children.forEach(c=>{
+      const bb=childBBox(c);if(!bb)return;
+      const cx=ax,cy=ay+cursor;
+      if(c.isFrame){
+        const cf=getFr(c.id);if(!cf)return;
+        const dx=cx-cf.x,dy=cy-cf.y;
+        shiftFrame(cf.id,dx,dy);
+      } else {
+        const o=getEl(c.id);if(!o)return;
+        o.x=cx;o.y=cy;
+        // In column layout, stretch text children to fill frame width.
+        setElemSize(o,maxW,null);
+        const el=document.getElementById('el-'+o.id);
+        if(el){el.style.left=cx+'px';el.style.top=cy+'px';}
+      }
+      cursor+=bb.h+GAP;
+    });
+    const totalH=cursor>0?cursor-GAP:0;
+    const totalW=maxW;
+    f.x=ax-PAD;f.y=ay-PAD;f.w=totalW+PAD*2;f.h=totalH+PAD*2;
+  }
+  const fel=document.getElementById('fr-'+f.id);
+  if(fel){fel.style.left=f.x+'px';fel.style.top=f.y+'px';fel.style.width=f.w+'px';fel.style.height=f.h+'px';}
+}
+
+function shiftFrame(fId,dx,dy){
+  const f=getFr(fId);if(!f||(!dx&&!dy))return;
+  f.x+=dx;f.y+=dy;
+  const fel=document.getElementById('fr-'+f.id);
+  if(fel){fel.style.left=f.x+'px';fel.style.top=f.y+'px';}
+  f.children.forEach(c=>{
+    if(c.isFrame)shiftFrame(c.id,dx,dy);
+    else{const o=getEl(c.id);if(!o)return;o.x+=dx;o.y+=dy;const el=document.getElementById('el-'+o.id);if(el){el.style.left=o.x+'px';el.style.top=o.y+'px';}}
+  });
+}
+
+function reflowAncestor(childId, isFrame){
+  const p=parentOf(childId,!!isFrame);
+  if(p){
+    const top=topAncestor(p.id);
+    reflowFrame(top.id,top.x+PAD,top.y+PAD);
+  }
+}
+
+// ONLY MOVE THE TOP PARENT
+function getTopFrameForElem(id){
+  const p=parentOf(id,false);
+  return p?topAncestor(p.id):null;
+}
+
+function getTopFrameForFrame(id){
+  const f=getFr(id);
+  if(!f)return null;
+  return topAncestor(f.id);
+}
+
+// ── canvas events ─────────────────────────────────────────────────────
+cv.addEventListener('mousedown',e=>{
+  if(renaming){commitRename();return;}
+  const tbEl=e.target.closest('.tb');
+  const frEl=e.target.closest('.fr');
+  const tool=getTool();
+
+  if(tool==='t'){
+    if(tbEl||frEl)return;
+    e.preventDefault();
+    drawSt=gp(e);drawing=true;
+    ghost.style.cssText=`display:block;left:${drawSt.x}px;top:${drawSt.y}px;width:${TW}px;height:${TH}px`;
+    return;
+  }
+  if(tool==='s'){
+    if(tbEl&&e.target.tagName!=='TEXTAREA'){
+      e.preventDefault();
+      const id=+tbEl.dataset.id;
+      const topFrame=getTopFrameForElem(id);
+      if(topFrame){
+        clearAll();
+        selFid=topFrame.id;
+        updateSelVis();
+        document.getElementById('btn-del').style.display='';
+        updateLayers();updateRP();
+        const p=gp(e);
+        dragFr={fid:topFrame.id};
+        dragFrOff={x:p.x-topFrame.x,y:p.y-topFrame.y};
+        return;
+      }
+      if(!e.shiftKey)selFid=null;
+      if(!e.shiftKey){if(!selIds.has(id))selOnly(id);}else togSel(id);
+      const p=gp(e);dragging={sx:p.x,sy:p.y};dragSt={};
+      selIds.forEach(sid=>{const o=getEl(sid);if(o)dragSt[sid]={x:o.x,y:o.y};});
+      return;
+    }
+    if(frEl&&e.target.tagName!=='TEXTAREA'){
+      e.preventDefault();
+      const id=+frEl.dataset.fid;
+      const topFrame=getTopFrameForFrame(id);
+      if(!topFrame)return;
+      clearAll();selFid=id;
+      document.querySelectorAll('.fr').forEach(f=>f.classList.remove('sel'));
+      const clickedFrameEl=document.getElementById('fr-'+id);
+      if(clickedFrameEl)clickedFrameEl.classList.add('sel');
+      document.getElementById('btn-del').style.display='';
+      updateLayers();updateRP();
+      const p=gp(e);
+      dragFr={fid:topFrame.id};
+      dragFrOff={x:p.x-topFrame.x,y:p.y-topFrame.y};
+      return;
+    }
+    if(!tbEl&&!frEl){
+      clearAll();selecting=true;selSt=gp(e);
+      selbox.style.cssText=`display:block;left:${selSt.x}px;top:${selSt.y}px;width:0;height:0`;
+    }
+  }
+});
+
+window.addEventListener('mousemove',e=>{
+  if(drawing){
+    const p=gp(e);
+    ghost.style.left=Math.min(p.x,drawSt.x)+'px';ghost.style.top=Math.min(p.y,drawSt.y)+'px';
+    ghost.style.width=Math.max(TW,Math.abs(p.x-drawSt.x))+'px';ghost.style.height=Math.max(TH,Math.abs(p.y-drawSt.y))+'px';
+  }
+  if(dragging&&Object.keys(dragSt).length){
+    const p=gp(e);const dx=p.x-dragging.sx,dy=p.y-dragging.sy;
+    selIds.forEach(sid=>{
+      const s=dragSt[sid];const o=getEl(sid);if(!s||!o)return;
+      o.x=s.x+dx;o.y=s.y+dy;
+      const el=document.getElementById('el-'+sid);
+      if(el){el.style.left=o.x+'px';el.style.top=o.y+'px';}
+    });
+    selIds.forEach(sid=>reflowAncestor(sid,false));
+    updatePP();
+  }
+  if(selecting){
+    const p=gp(e);
+    const x=Math.min(p.x,selSt.x),y=Math.min(p.y,selSt.y);
+    const w=Math.abs(p.x-selSt.x),h=Math.abs(p.y-selSt.y);
+    selbox.style.left=x+'px';selbox.style.top=y+'px';selbox.style.width=w+'px';selbox.style.height=h+'px';
+    elems.forEach(o=>{
+      const el=document.getElementById('el-'+o.id);if(!el)return;
+      if(o.x<x+w&&o.x+el.offsetWidth>x&&o.y<y+h&&o.y+el.offsetHeight>y)selIds.add(o.id);else selIds.delete(o.id);
+    });
+    updateSelVis();
+  }
+  if(dragFr){
+    const p=gp(e);const f=getFr(dragFr.fid);if(!f)return;
+    const nx=p.x-dragFrOff.x,ny=p.y-dragFrOff.y;
+    const dx=nx-f.x,dy=ny-f.y;
+    shiftFrame(f.id,dx,dy);
+  }
+});
+
+window.addEventListener('mouseup',e=>{
+  if(drawing){
+    drawing=false;ghost.style.display='none';
+    const p=gp(e);
+    mkElem(Math.min(p.x,drawSt.x),Math.min(p.y,drawSt.y));setTool('s');
+  }
+  if(dragging){dragging=null;dragSt={};updatePP();scheduleSaveState();}
+  if(selecting){selecting=false;selbox.style.display='none';updateLayers();updateRP();}
+  if(dragFr){dragFr=null;scheduleSaveState();}
+});
+
+// ── create elem ───────────────────────────────────────────────────────
+function mkElem(x,y){
+  const id=++eid;
+  const o={id,x,y,w:TW,h:TH,text:'',name:'Textbox '+id};
+  elems.push(o);renderEl(o,true);selOnly(id);updateLayers();scheduleSaveState();
+}
+
+function renderEl(o,shouldFocus){
+  const focusIt=shouldFocus!==false;
+  const div=document.createElement('div');
+  div.className='tb';div.id='el-'+o.id;div.dataset.id=o.id;
+  div.style.cssText=`left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px`;
+  const lbl=document.createElement('div');
+  lbl.className='tb-label'+(isSpecial(o.name)?' sp':'');lbl.id='tblbl-'+o.id;
+  lbl.textContent=dispName(o.name);
+  const sel=document.createElement('div');sel.className='tb-sel';
+  const ta=document.createElement('textarea');
+  ta.placeholder='Type...';ta.value=o.text;
+  ta.style.cssText=`width:${o.w}px;height:${o.h}px`;
+  ta.addEventListener('input',()=>{o.text=ta.value;syncAstInputs(o);scheduleSaveState();});
+  ta.addEventListener('mousedown',e2=>{e2.stopPropagation();selOnly(o.id);});
+  ta.addEventListener('focus',()=>selOnly(o.id));
+  div.appendChild(lbl);div.appendChild(sel);div.appendChild(ta);
+  cv.appendChild(div);
+  updateTextboxVerticalCenter(o);
+  if(focusIt)setTimeout(()=>ta.focus(),20);
+}
+
+
+
+
+function autoLayout(dir) {
+  let selectedItems = normalizeSelectionForAutoLayout();
+
+  if (selectedItems.length <= 1) return;
+
+  // 2. Find the common parent frame (if any)
+  const firstItem = selectedItems[0];
+  const commonParent = parentOf(firstItem.id, firstItem.isFrame);
+  
+  // Verify all items share the same parent to maintain nesting integrity
+  const allShareParent = selectedItems.every(item => parentOf(item.id, item.isFrame) === commonParent);
+  const targetParent = allShareParent ? commonParent : null;
+
+  // 3. Sorting based on visual position
+  selectedItems.sort((a, b) => {
+    const ba = getBBoxForItem(a), bb = getBBoxForItem(b);
+    return dir === 'row' ? (ba.x - bb.x) : (ba.y - bb.y);
+  });
+
+  // 4. Create the new Frame Object
+  const id = ++fid;
+  const name = (dir === 'row' ? 'Row' : 'Col') + ' ' + id;
+  const bboxes = selectedItems.map(getBBoxForItem);
+  const ax = Math.min(...bboxes.map(b => b.x));
+  const ay = Math.min(...bboxes.map(b => b.y));
+
+  const f = { id, x: ax - PAD, y: ay - PAD, w: 0, h: 0, dir, children: [...selectedItems], name };
+  frames.push(f);
+
+  // 5. DOM Creation
+  const fel = document.createElement('div');
+  fel.className = 'fr';
+  fel.id = 'fr-' + id;
+  fel.dataset.fid = id;
+  fel.innerHTML = `<div class="fr-label" id="frlbl-${id}">${name}</div>`;
+  cv.insertBefore(fel, cv.firstChild);
+
+  // 6. Hierarchy Re-linking
+  if (targetParent) {
+    const childIndexes = selectedItems
+      .map(item => targetParent.children.findIndex(c => c.id === item.id && c.isFrame === item.isFrame))
+      .filter(i => i >= 0);
+    const insertIdx = childIndexes.length ? Math.min(...childIndexes) : targetParent.children.length;
+    // Remove selected items from parent
+    targetParent.children = targetParent.children.filter(c => 
+      !selectedItems.some(si => si.id === c.id && si.isFrame === c.isFrame)
+    );
+    // Insert the NEW frame at that same spot
+    targetParent.children.splice(insertIdx, 0, { id: f.id, isFrame: true });
+  } else {
+    // If no common parent, it's a top-level frame. 
+    // Remove children from any existing frames they might have been in
+    frames.forEach(fr => {
+      if (fr.id === f.id) return;
+      fr.children = fr.children.filter(c => 
+        !selectedItems.some(si => si.id === c.id && si.isFrame === c.isFrame)
+      );
+    });
+  }
+
+  // 7. Finalize Selection and Render
+  clearAll();
+  const top = topAncestor(f.id);
+  reflowFrame(top.id, top.x + PAD, top.y + PAD);
+  selFid = f.id;
+  updateSelVis();
+  updateRP();
+  updateLayers();
+  scheduleSaveState();
+}
+
+function normalizeSelectionForAutoLayout() {
+  const selectedElemIds = new Set(selIds);
+  const selectedFrameIds = new Set();
+
+  if (selFid != null) selectedFrameIds.add(selFid);
+
+  // If all children of an existing frame are selected, treat that group as one frame item.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    frames.forEach(f => {
+      if (selectedFrameIds.has(f.id) || !f.children.length) return;
+      const allChildrenSelected = f.children.every(c => c.isFrame ? selectedFrameIds.has(c.id) : selectedElemIds.has(c.id));
+      if (!allChildrenSelected) return;
+
+      selectedFrameIds.add(f.id);
+      f.children.forEach(c => {
+        if (c.isFrame) selectedFrameIds.delete(c.id);
+        else selectedElemIds.delete(c.id);
+      });
+      changed = true;
+    });
+  }
+
+  const hasSelectedFrameAncestor = fid => {
+    let p = parentOf(fid, true);
+    while (p) {
+      if (selectedFrameIds.has(p.id)) return true;
+      p = parentOf(p.id, true);
+    }
+    return false;
+  };
+
+  const hasSelectedElemFrameAncestor = eid => {
+    let p = parentOf(eid, false);
+    while (p) {
+      if (selectedFrameIds.has(p.id)) return true;
+      p = parentOf(p.id, true);
+    }
+    return false;
+  };
+
+  [...selectedFrameIds].forEach(fid => {
+    if (hasSelectedFrameAncestor(fid)) selectedFrameIds.delete(fid);
+  });
+  [...selectedElemIds].forEach(eid => {
+    if (hasSelectedElemFrameAncestor(eid)) selectedElemIds.delete(eid);
+  });
+
+  const normalized = [];
+  selectedFrameIds.forEach(id => normalized.push({ id, isFrame: true }));
+  selectedElemIds.forEach(id => normalized.push({ id, isFrame: false }));
+  return normalized;
+}
+
+
+
+
+function getBBoxForItem(item){
+  if(item.isFrame){const f=getFr(item.id);if(!f)return{x:0,y:0,w:0,h:0};return{x:f.x,y:f.y,w:f.w,h:f.h};}
+  else{const o=getEl(item.id);if(!o)return{x:0,y:0,w:TW,h:TH};const el=document.getElementById('el-'+o.id);return{x:o.x,y:o.y,w:el?el.offsetWidth:o.w,h:el?el.offsetHeight:o.h};}
+}
+
+// ── selection ─────────────────────────────────────────────────────────
+function selOnly(id){selIds.clear();selFid=null;if(id!=null)selIds.add(id);document.querySelectorAll('.fr').forEach(f=>f.classList.remove('sel'));updateSelVis();updateLayers();updateRP();}
+function togSel(id){if(selIds.has(id))selIds.delete(id);else selIds.add(id);updateSelVis();updateLayers();updateRP();}
+function clearAll(){selIds.clear();selFid=null;document.querySelectorAll('.fr').forEach(f=>f.classList.remove('sel'));updateSelVis();updateLayers();updateRP();document.getElementById('btn-del').style.display='none';}
+function updateSelVis(){
+  elems.forEach(o=>{
+    const el=document.getElementById('el-'+o.id);
+    if(el)el.classList.toggle('sel',selIds.has(o.id));
+  });
+  document.querySelectorAll('.fr').forEach(fr=>fr.classList.remove('sel'));
+  if(selFid!=null){
+    const frameEl=document.getElementById('fr-'+selFid);
+    if(frameEl)frameEl.classList.add('sel');
+  }
+  const any=selIds.size>0||selFid!=null;document.getElementById('btn-del').style.display=any?'':'none';
+}
+
+function deleteSelected(){
+  if(selFid!=null){
+    // remove frame from its parent too
+    frames.forEach(f=>{f.children=f.children.filter(c=>!(c.id===selFid&&c.isFrame));});
+    frames=frames.filter(f=>f.id!==selFid);
+    const frameEl=document.getElementById('fr-'+selFid);
+    if(frameEl)frameEl.remove();
+    selFid=null;
+  }
+  selIds.forEach(id=>{
+    elems=elems.filter(o=>o.id!==id);
+    const elemEl=document.getElementById('el-'+id);
+    if(elemEl)elemEl.remove();
+    frames.forEach(f=>{f.children=f.children.filter(c=>!(c.id===id&&!c.isFrame));});
+  });
+  selIds.clear();
+  frames.forEach(f=>{const top=topAncestor(f.id);reflowFrame(top.id,top.x+PAD,top.y+PAD);});
+  updateSelVis();updateLayers();updateRP();
+  scheduleSaveState();
+}
+
+// ── right panel ───────────────────────────────────────────────────────
+function updateRP(){
+  const s=document.getElementById('rp-single');
+  const m=document.getElementById('rp-multi');
+  const h=document.getElementById('rp-hint');
+  const multiCount=selIds.size+(selFid!=null?1:0);
+  if(selIds.size===1&&selFid==null){s.style.display='';m.style.display='none';h.style.display='none';updatePP();}
+  else if(multiCount>1){s.style.display='none';m.style.display='';h.style.display='none';document.getElementById('mc').textContent=multiCount+' selected';}
+  else{s.style.display='none';m.style.display='none';h.style.display='';}
+}
+function updatePP(){
+  if(selIds.size!==1)return;
+  const o=getEl([...selIds][0]);if(!o)return;
+  const el=document.getElementById('el-'+o.id);
+  if(el){o.w=el.offsetWidth;o.h=el.offsetHeight;}
+  document.getElementById('pw').value=Math.round(o.w);
+  document.getElementById('ph').value=Math.round(o.h);
+  document.getElementById('px').value=Math.round(o.x);
+  document.getElementById('py').value=Math.round(o.y);
+}
+function applyP(k,v){
+  if(selIds.size!==1)return;
+  const o=getEl([...selIds][0]);if(!o)return;
+  const val=parseFloat(v);if(isNaN(val))return;
+  if(k==='x'){o.x=val;document.getElementById('el-'+o.id).style.left=val+'px';}
+  if(k==='y'){o.y=val;document.getElementById('el-'+o.id).style.top=val+'px';}
+  if(k==='w'){o.w=Math.max(20,val);const ta=document.querySelector('#el-'+o.id+' textarea');if(ta){ta.style.width=o.w+'px';document.getElementById('el-'+o.id).style.width=o.w+'px';}}
+  if(k==='h'){
+    o.h=Math.max(20,val);
+    const ta=document.querySelector('#el-'+o.id+' textarea');
+    if(ta){
+      ta.style.height=o.h+'px';
+      document.getElementById('el-'+o.id).style.height=o.h+'px';
+      updateTextboxVerticalCenter(o);
+    }
+  }
+  reflowAncestor(o.id,false);
+  scheduleSaveState();
+}
+
+// ── layer panel ───────────────────────────────────────────────────────
+// Build a recursive layer tree
+function updateLayers(){
+  hideInstanceMenu();
+  const ll=document.getElementById('layer-list');
+  if(elems.length===0&&frames.length===0){
+    ll.innerHTML='<div style="padding:20px 12px;font-size:12px;color:var(--color-text-tertiary);text-align:center;line-height:1.8">No elements yet.<br>Draw a textbox.</div>';return;
+  }
+  ll.innerHTML='';
+  // find top-level items (not children of any frame)
+  const childElemIds=new Set(frames.flatMap(f=>f.children.filter(c=>!c.isFrame).map(c=>c.id)));
+  const childFrameIds=new Set(frames.flatMap(f=>f.children.filter(c=>c.isFrame).map(c=>c.id)));
+
+  const topFrames=frames.filter(f=>!childFrameIds.has(f.id));
+  const topElems=elems.filter(o=>!childElemIds.has(o.id));
+
+  topFrames.slice().reverse().forEach(f=>renderFrameLayer(ll,f,0,[],false));
+  topElems.slice().reverse().forEach(o=>renderElemLayer(ll,o,0,[],false));
+  refreshAstOverlays();
+}
+
+function appendLayerGuides(row,trail){
+  if(!trail||!trail.length)return;
+  const guides=document.createElement('span');
+  guides.className='li-guides';
+  trail.forEach((hasNext,idx)=>{
+    const guide=document.createElement('span');
+    const isCurrentLevel=idx===trail.length-1;
+    if(!isCurrentLevel){
+      guide.className='li-guide '+(hasNext?'cont':'empty');
+    }else{
+      guide.className='li-guide '+(hasNext?'branch':'last');
+    }
+    guides.appendChild(guide);
+  });
+  row.appendChild(guides);
+}
+
+function renderFrameLayer(container,f,depth,trail,inheritedSel){
+  const isSel=selFid===f.id;
+  const isTreeSel=!!inheritedSel;
+  const sp=isSpecial(f.name);
+  const item=document.createElement('div');
+  item.className='li fr-li'+(isSel?' sel':'')+(isTreeSel?' sel-tree':'');
+  item.id='li-f'+f.id;
+
+  const row=document.createElement('div');
+  row.className='li-row';
+  appendLayerGuides(row,trail);
+
+  const content=document.createElement('div');
+  content.className='li-content';
+  const icon=document.createElement('span');
+  icon.className='li-icon';
+  const iconInner=document.createElement('img');
+  // iconInner.src=f.dir==='row'?'row0.png':'col0.png';
+  // iconInner.src=f.dir==='row'?'row1.png':'col1.png';
+  // iconInner.src=f.dir==='row'?'row2.png':'col2.png';
+  iconInner.src=f.dir==='row'?'row3.png':'col3.png';
+  // iconInner.src=f.dir==='row'?'row4.png':'col4.png';
+  // iconInner.src=f.dir==='row'?'row5.png':'col5.png';
+  // iconInner.src=f.dir==='row'?'row6.png':'col6.png';
+  // iconInner.src=f.dir==='row'?'row7.png':'col7.png';
+  iconInner.alt=f.dir==='row'?'Row layout':'Column layout';
+  icon.appendChild(iconInner);
+  const nm=document.createElement('span');nm.className='li-name'+(sp?' sp':'');nm.textContent=f.name;
+
+  content.appendChild(icon);
+  content.appendChild(nm);
+  row.appendChild(content);
+  item.appendChild(row);
+  item.addEventListener('click',e=>{
+    if(renaming)return;setTool('s');
+    clearAll();selFid=f.id;
+    updateSelVis();
+    document.getElementById('btn-del').style.display='';
+    updateLayers();updateRP();
+  });
+  container.appendChild(item);
+
+  // Render children
+  const childInheritedSel=isTreeSel||isSel;
+  f.children.forEach((c,idx)=>{
+    const childTrail=trail.concat(idx<f.children.length-1);
+    if(c.isFrame){const cf=getFr(c.id);if(cf)renderFrameLayer(container,cf,depth+1,childTrail,childInheritedSel);}
+    else{const o=getEl(c.id);if(o)renderElemLayer(container,o,depth+1,childTrail,childInheritedSel);}
+  });
+}
+
+function refreshAstOverlays(){
+  document.querySelectorAll('.fr-ast').forEach(el=>el.remove());
+  const childFrameIds=new Set(frames.flatMap(fr=>fr.children.filter(c=>c.isFrame).map(c=>c.id)));
+  const topFrames=frames.filter(f=>!childFrameIds.has(f.id));
+
+  // magenta input fields
+  topFrames.forEach(f=>{
+    const frameLabel=document.getElementById('frlbl-'+f.id);
+    if(frameLabel)frameLabel.style.top='-16px';
+
+    const specials=collectSpecial(f);
+    if(!specials.length)return;
+    ensureFrameAstData(f,specials);
+    applyFrameAstInstance(f);
+    const frameEl=document.getElementById('fr-'+f.id);
+    if(!frameEl)return;
+    const panel=document.createElement('div');
+    panel.className='fr-ast';
+    panel.addEventListener('mousedown',e=>e.stopPropagation());
+    panel.addEventListener('click',e=>e.stopPropagation());
+    const topBar=document.createElement('div');
+    topBar.className='fr-ast-top';
+    const topLbl=document.createElement('span');
+    topLbl.className='fr-ast-top-lbl';
+    topLbl.textContent='Active Instance';
+    const picker=document.createElement('select');
+    picker.className='fr-ast-sel';
+    f.ast.instances.forEach((inst,idx)=>{
+      const opt=document.createElement('option');
+      opt.value=idx;
+      opt.textContent=inst.name;
+      picker.appendChild(opt);
+    });
+    picker.value=String(f.ast.selected);
+    picker.addEventListener('change',()=>{
+      f.ast.selected=+picker.value;
+      applyFrameAstInstance(f);
+      refreshAstOverlays();
+      scheduleSaveState();
+    });
+    topBar.appendChild(topLbl);
+    topBar.appendChild(picker);
+    panel.appendChild(topBar);
+
+    const grid=document.createElement('div');
+    grid.className='fr-ast-grid';
+
+    const labelCol=document.createElement('div');
+    labelCol.className='fr-ast-col fr-ast-label-col';
+    const labelHead=document.createElement('div');
+    labelHead.className='fr-ast-col-h';
+    labelHead.textContent='Field';
+    labelCol.appendChild(labelHead);
+
+    specials.forEach(o=>{
+      const row=document.createElement('div');
+      row.className='fr-ast-row';
+      const lbl=document.createElement('span');
+      lbl.className='fr-ast-lbl';
+      const rawVal=f.ast.instances[0]&&f.ast.instances[0].values?String(f.ast.instances[0].values[o.id]||''):'';
+      const isFormula=looksLikeFormula(rawVal);
+      if(isFormula){
+        const fLabel=document.createElement('span');
+        fLabel.textContent='f';
+        fLabel.style.fontFamily='cursive';
+        fLabel.style.fontSize='8px';
+        fLabel.style.marginRight='3px';
+        fLabel.style.fontWeight='bold';
+        lbl.appendChild(fLabel);
+      }
+      const nameSpan=document.createElement('span');
+      nameSpan.textContent=dispName(o.name);
+      nameSpan.title=dispName(o.name);
+      lbl.appendChild(nameSpan);
+      row.appendChild(lbl);
+      labelCol.appendChild(row);
+    });
+
+    grid.appendChild(labelCol);
+
+    f.ast.instances.forEach((inst,instIdx)=>{
+      const resolvedMap=computeFrameAstResolvedValues(f,specials,inst);
+      const col=document.createElement('div');
+      col.className='fr-ast-col';
+      const ch=document.createElement('div');
+      ch.className='fr-ast-col-h';
+      ch.textContent=inst.name;
+      if(instIdx>0){
+        ch.style.cursor='context-menu';
+        ch.title='Right-click to delete instance';
+        ch.addEventListener('contextmenu',e2=>{
+          e2.preventDefault();
+          e2.stopPropagation();
+          showInstanceMenu(e2,f,instIdx);
+        });
+      }
+      col.appendChild(ch);
+
+      specials.forEach(o=>{
+        const row=document.createElement('div');
+        row.className='fr-ast-row';
+        const inp=document.createElement('input');
+        inp.className='fr-ast-inp ast-inp';
+        inp.style.textAlign='center';
+        
+        // Check if instance0 has a formula for this field
+        const hasFormula=instance0HasFormula(f,o.id);
+        const isInstance0=instIdx===0;
+        
+        let rawVal, displayResolved;
+        if(hasFormula&&!isInstance0){
+          // For non-instance0 rows with formula: use instance0's formula but compute with current instance's values
+          const inst0=f.ast.instances[0];
+          rawVal=inst0.values[o.id]!=null?String(inst0.values[o.id]):'';
+          // When it's a formula, evaluate it using current instance's field values for references
+          if(looksLikeFormula(rawVal)){
+            displayResolved=evalFormulaExpression(rawVal,refName=>{
+              const keyMap={};
+              specials.forEach(s=>{
+                const k=specialKey(s.name);
+                if(k&&!keyMap[k])keyMap[k]=s;
+              });
+              const target=keyMap[(refName||'').toLowerCase()];
+              if(!target)return 0;
+              const targetVal=inst.values[target.id]!=null?String(inst.values[target.id]):'';
+              const num=parseFloat(targetVal);
+              return isFinite(num)?num:0;
+            });
+          } else {
+            displayResolved=rawVal;
+          }
+        } else {
+          rawVal=inst.values[o.id]!=null?String(inst.values[o.id]):'';
+          displayResolved=resolvedMap[o.id];
+        }
+        inp.value=getAstDisplayValue(rawVal,displayResolved);
+        inp.placeholder='value...';
+        inp.dataset.elemId=o.id;
+        inp.dataset.frameId=f.id;
+        inp.dataset.instanceIdx=instIdx;
+        
+        const isActiveInstance=instIdx===f.ast.selected;
+        
+        // If not instance0 and instance0 has formula, make read-only
+        if(!isInstance0&&hasFormula){
+          inp.readOnly=true;
+          inp.style.opacity='0.6';
+          inp.style.cursor='not-allowed';
+          inp.style.backgroundColor='var(--black4)';
+        }
+        
+        inp.addEventListener('input',()=>{
+          const newVal=inp.value;
+          inst.values[o.id]=newVal;
+          
+          if(isActiveInstance){
+            applyFrameAstInstance(f);
+          }
+          
+          // Update all formula fields in this instance with newly computed values
+          specials.forEach(special=>{
+            const inst0=f.ast.instances[0];
+            const inst0Raw=inst0.values[special.id]!=null?String(inst0.values[special.id]):'';
+            if(looksLikeFormula(inst0Raw)){
+              // This field has a formula, recompute it for current instance
+              const computed=evalFormulaExpression(inst0Raw,refName=>{
+                const keyMap={};
+                specials.forEach(s=>{
+                  const k=specialKey(s.name);
+                  if(k&&!keyMap[k])keyMap[k]=s;
+                });
+                const target=keyMap[(refName||'').toLowerCase()];
+                if(!target)return 0;
+                const targetVal=inst.values[target.id]!=null?String(inst.values[target.id]):'';
+                const num=parseFloat(targetVal);
+                return isFinite(num)?num:0;
+              });
+              // Update the display of this formula field in the grid
+              const formulaInp=document.querySelector('.ast-inp[data-frame-id="'+f.id+'"][data-instance-idx="'+instIdx+'"][data-elem-id="'+special.id+'"]');
+              if(formulaInp){
+                formulaInp.value=computed;
+              }
+            }
+          });
+          
+          scheduleSaveState();
+        });
+        
+        const updateExpandedWidth=()=>{
+          const len=inp.value.length;
+          const minW=40;
+          const maxW=600;
+          const charW=8;
+          const w=Math.min(maxW, Math.max(minW, len*charW+20));
+          inp.style.width=w+'px';
+        };
+        
+        inp.addEventListener('focus',()=>{
+          if(hasFormula&&!isInstance0)return; // Don't allow focus on read-only formula fields
+          
+          inp.value=inst.values[o.id]!=null?String(inst.values[o.id]):'';
+          const rect=inp.getBoundingClientRect();
+          const panelRect=panel.getBoundingClientRect();
+          inp.style.position='absolute';
+          inp.style.left=(rect.left-panelRect.left)+'px';
+          inp.style.top=(rect.top-panelRect.top)+'px';
+          inp.style.zIndex='999';
+          inp.style.height=rect.height+'px';
+          inp.style.boxSizing='border-box';
+          inp.style.textAlign='left';
+          updateExpandedWidth();
+          inp.select();
+        });
+        
+        inp.addEventListener('input',()=>{
+          if(inp.style.position==='absolute'){
+            updateExpandedWidth();
+          }
+        });
+        
+        inp.addEventListener('blur',()=>{
+          inp.style.position='';
+          inp.style.left='';
+          inp.style.top='';
+          inp.style.width='';
+          inp.style.zIndex='';
+          inp.style.height='';
+          inp.style.boxSizing='';
+          inp.style.textAlign='center';
+          
+          let nextRaw, nextResolved;
+          if(hasFormula&&!isInstance0){
+            // For formula fields in non-instance0: use instance0's formula with current instance's values
+            const inst0=f.ast.instances[0];
+            nextRaw=inst0.values[o.id]!=null?String(inst0.values[o.id]):'';
+            if(looksLikeFormula(nextRaw)){
+              nextResolved=evalFormulaExpression(nextRaw,refName=>{
+                const keyMap={};
+                specials.forEach(s=>{
+                  const k=specialKey(s.name);
+                  if(k&&!keyMap[k])keyMap[k]=s;
+                });
+                const target=keyMap[(refName||'').toLowerCase()];
+                if(!target)return 0;
+                const targetVal=inst.values[target.id]!=null?String(inst.values[target.id]):'';
+                const num=parseFloat(targetVal);
+                return isFinite(num)?num:0;
+              });
+            } else {
+              nextResolved=nextRaw;
+            }
+          } else {
+            nextRaw=inst.values[o.id]!=null?String(inst.values[o.id]):'';
+            nextResolved=computeFrameAstResolvedValues(f,specials,inst)[o.id];
+          }
+          inp.value=getAstDisplayValue(nextRaw,nextResolved);
+          
+          // Check if formula status changed and refresh if needed
+          const nowHasFormula=looksLikeFormula(nextRaw);
+          if(isInstance0&&hasFormula!==nowHasFormula){
+            refreshAstOverlays();
+          }
+        });
+        
+        inp.addEventListener('mousedown',e2=>e2.stopPropagation());
+        row.appendChild(inp);
+        col.appendChild(row);
+      });
+
+      grid.appendChild(col);
+    });
+
+    const addBtn=document.createElement('button');
+    addBtn.type='button';
+    addBtn.className='fr-ast-plus';
+    addBtn.textContent='+';
+    addBtn.title='Create instance';
+    addBtn.addEventListener('click',()=>{
+      addFrameAstInstance(f,specials);
+      refreshAstOverlays();
+      scheduleSaveState();
+    });
+    grid.appendChild(addBtn);
+    panel.appendChild(grid);
+    frameEl.appendChild(panel);
+
+    // Place AST controls between the frame label and the frame border.
+    const panelHeight=panel.offsetHeight;
+    panel.style.top=-(panelHeight + 24)+'px';
+    // if(frameLabel)frameLabel.style.top=-(panelHeight+40)+'px';
+  });
+}
+
+function renderElemLayer(container,o,depth,trail,inheritedSel){
+  const isSel=selIds.has(o.id);
+  const isTreeSel=!!inheritedSel;
+  const sp=isSpecial(o.name);
+  const item=document.createElement('div');
+  item.className='li'+(isSel?' sel':'')+(isTreeSel?' sel-tree':'');
+  item.id='li-'+o.id;
+
+  const row=document.createElement('div');
+  row.className='li-row';
+  appendLayerGuides(row,trail);
+
+  const content=document.createElement('div');
+  content.className='li-content';
+  const icon=document.createElement('span');
+  icon.className='li-icon';
+  const iconInner=document.createElement('i');
+  iconInner.className='fa-solid fa-t';
+  icon.appendChild(iconInner);
+  const nm=document.createElement('span');nm.className='li-name'+(sp?' sp':'');nm.textContent=o.name;
+  content.appendChild(icon);
+  content.appendChild(nm);
+  row.appendChild(content);
+  item.appendChild(row);
+  item.addEventListener('click',e2=>{
+    if(renaming)return;setTool('s');
+    if(e2.shiftKey)togSel(o.id);else selOnly(o.id);
+  });
+  container.appendChild(item);
+}
+
+// ── rename (⌘+Enter) ──────────────────────────────────────────────────
+function startRename(){
+  if(renaming){commitRename();return;}
+  let obj=null,type=null,liId=null;
+  if(selIds.size===1){obj=getEl([...selIds][0]);type='tb';liId='li-'+obj.id;}
+  else if(selFid!=null){obj=getFr(selFid);type='frame';liId='li-f'+obj.id;}
+  if(!obj)return;
+  const li=document.getElementById(liId);if(!li)return;
+  const nm=li.querySelector('.li-name');if(!nm)return;
+  const inp=document.createElement('input');
+  inp.className='li-rename';inp.value=obj.name;
+  nm.replaceWith(inp);inp.focus();inp.select();
+  renaming={obj,type,inp,nm};
+}
+
+function commitRename(){
+  if(!renaming)return;
+  const{obj,type,inp,nm}=renaming;
+  const val=inp.value.trim()||obj.name;
+  obj.name=val;renaming=null;
+  const sp=isSpecial(val);
+  nm.className='li-name'+(sp?' sp':'');nm.textContent=val;
+  inp.replaceWith(nm);
+  if(type==='tb'){
+    const lbl=document.getElementById('tblbl-'+obj.id);
+    if(lbl){lbl.textContent=dispName(val);lbl.className='tb-label'+(sp?' sp':'');}
+  } else {
+    const lbl=document.getElementById('frlbl-'+obj.id);
+    if(lbl){lbl.textContent=val;lbl.className='fr-label'+(sp?' sp':'');}
+  }
+  // re-render layers to refresh ast blocks
+  updateLayers();
+  scheduleSaveState();
+}
+
+// sync ast input when textarea changes
+function syncAstInputs(o){
+  frames.forEach(f=>{
+    const specials=collectSpecial(f);
+    if(!specials.some(s=>s.id===o.id))return;
+    ensureFrameAstData(f,specials);
+    const idx=f.ast.selected;
+    const inst=f.ast.instances[idx];
+    if(inst&&inst.values){
+      inst.values[o.id]=o.text;
+      const inp=document.querySelector('.ast-inp[data-frame-id="'+f.id+'"][data-instance-idx="'+idx+'"][data-elem-id="'+o.id+'"]');
+      if(inp)inp.value=o.text;
+      applyFrameAstInstance(f);
+      // If this is instance0 and formula status changed, refresh overlays to update read-only states
+      if(idx===0){
+        refreshAstOverlays();
+      }
+    }
+  });
+}
+
+restoreState();
+restoreTheme();
+window.addEventListener('beforeunload',saveStateNow);
+window.addEventListener('mousedown',handleInstanceMenuOutsideClick);
+window.addEventListener('scroll',hideInstanceMenu,true);
+
+// ── keyboard ──────────────────────────────────────────────────────────
+window.addEventListener('keydown',e=>{
+  const tag=document.activeElement.tagName;
+  if(tag==='INPUT'){
+    if(e.key==='Enter'){e.preventDefault();commitRename();}
+    if(e.key==='Escape'){if(renaming){renaming.inp.replaceWith(renaming.nm);renaming=null;}}
+    return;
+  }
+  if(e.key==='v'&&!e.metaKey&&!e.ctrlKey)setTool('s');
+  if(e.key==='t'&&!e.metaKey&&!e.ctrlKey)setTool('t');
+  if((e.key==='Delete'||e.key==='Backspace')&&tag!=='TEXTAREA'){e.preventDefault();deleteSelected();}
+  if(e.key==='Escape')clearAll();
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();startRename();}
+  if((e.metaKey||e.ctrlKey)&&e.key==='r'){e.preventDefault();const total=selIds.size+(selFid!=null?1:0);if(total>1)autoLayout('row');}
+  if((e.metaKey||e.ctrlKey)&&e.key==='c'){e.preventDefault();const total=selIds.size+(selFid!=null?1:0);if(total>1)autoLayout('col');}
+});
+</script>
+</body>
+</html>
