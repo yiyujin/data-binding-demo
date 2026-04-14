@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+<script src="example.js"></script>
 </head>
 <body>
 
@@ -33,12 +34,15 @@
     </button>
 
     <!-- DEV BUTTONS -->
-    <button class="tbtn" id="btn-add-example" onclick="addCurrentStateToExamples()" title="Add current canvas to examples">
+    <!-- <button class="tbtn" id="btn-add-example" onclick="addCurrentStateToExamples()" title="Add current canvas to examples">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg>Add Example
     </button>
     <button class="tbtn" id="btn-reset-example" onclick="resetExamples()" title="Clear saved examples">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M7 8v4M9 8v4"/></svg>Reset Example
     </button>
+    <button class="tbtn" id="btn-export-example-js" onclick="downloadCurrentStateAsExampleJs()" title="Download current canvas as example.js">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v7"/><path d="M5.5 7.5L8 10l2.5-2.5"/><path d="M2.5 12.5h11"/></svg>Export JS
+    </button> -->
 
     <div class="toolbar-spacer"></div>
     <button class="tbtn" id="btn-del" onclick="deleteSelected()" style="display:none;color:var(--color-text-danger)">
@@ -220,6 +224,16 @@ function getExampleStates(){
   }
 }
 
+function getExampleStatesFromFile(){
+  try{
+    const source=window.EXAMPLE_STATES;
+    if(!Array.isArray(source))return [];
+    return source.filter(s=>s&&Array.isArray(s.elems)&&Array.isArray(s.frames));
+  }catch(err){
+    return [];
+  }
+}
+
 function saveExampleStates(states){
   localStorage.setItem(EXAMPLES_KEY,JSON.stringify(states));
 }
@@ -235,9 +249,10 @@ function restoreState(){
 
 function loadExampleState(){
   try{
-    const examples=getExampleStates();
+    const fileExamples=getExampleStatesFromFile();
+    const examples=fileExamples.length?fileExamples:getExampleStates();
     if(!examples.length){
-      window.alert('No examples saved yet. Create something and click Add Example.');
+      window.alert('No examples found. Add one with Add Example, or put EXAMPLE_STATES in example.js.');
       return;
     }
     const rawIdx=parseInt(localStorage.getItem(EXAMPLE_INDEX_KEY)||'0',10);
@@ -247,6 +262,28 @@ function loadExampleState(){
     applyState(selected);
     localStorage.setItem(EXAMPLE_INDEX_KEY,String((idx+1)%examples.length));
   }catch(err){}
+}
+
+function downloadCurrentStateAsExampleJs(){
+  try{
+    const snapshot=getCurrentStateSnapshot();
+    if(!snapshot.elems.length&&!snapshot.frames.length){
+      window.alert('Canvas is empty. Create something first.');
+      return;
+    }
+    const fileText='window.EXAMPLE_STATES = '+JSON.stringify([snapshot],null,2)+';\n';
+    const blob=new Blob([fileText],{type:'text/javascript'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='example.js';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }catch(err){
+    window.alert('Could not export example.js file.');
+  }
 }
 
 function addCurrentStateToExamples(){
