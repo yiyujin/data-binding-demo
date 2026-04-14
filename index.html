@@ -33,14 +33,14 @@
     </button>
 
     <!-- DEV BUTTONS -->
-    <!-- <button class="tbtn" id="btn-add-example" onclick="addCurrentStateToExamples()" title="Add current canvas to examples">
+    <button class="tbtn" id="btn-add-example" onclick="addCurrentStateToExamples()" title="Add current canvas to examples">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg>Add Example
     </button>
     <button class="tbtn" id="btn-reset-example" onclick="resetExamples()" title="Clear saved examples">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M7 8v4M9 8v4"/></svg>Reset Example
-    </button> -->
+    </button>
 
-    <div style="flex:1"></div>
+    <div class="toolbar-spacer"></div>
     <button class="tbtn" id="btn-del" onclick="deleteSelected()" style="display:none;color:var(--color-text-danger)">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M7 8v4M9 8v4"/></svg>Delete
     </button>
@@ -137,6 +137,13 @@ function restoreTheme(){
   let saved='light';
   try{saved=localStorage.getItem(THEME_KEY)||'light';}catch(err){}
   setTheme(saved==='dark'?'dark':'light');
+}
+
+function ensureExampleButtonsVisible(){
+  const addBtn=document.getElementById('btn-add-example');
+  const resetBtn=document.getElementById('btn-reset-example');
+  if(addBtn)addBtn.style.display='';
+  if(resetBtn)resetBtn.style.display='';
 }
 
 function serializeState(){
@@ -1649,6 +1656,7 @@ function syncAstInputs(o){
 
 restoreState();
 restoreTheme();
+ensureExampleButtonsVisible();
 window.addEventListener('beforeunload',saveStateNow);
 window.addEventListener('mousedown',handleInstanceMenuOutsideClick);
 window.addEventListener('scroll',hideInstanceMenu,true);
