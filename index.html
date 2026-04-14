@@ -28,6 +28,18 @@
     <button class="tbtn" id="btn-dark" onclick="toggleDarkMode()" title="Toggle dark mode">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4"/></svg>Theme
     </button>
+    <button class="tbtn" id="btn-example" onclick="loadExampleState()" title="Load Local Storage example">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5h11v8h-11z"/><path d="M5 2.5h6"/><path d="M5.5 7.5h5M5.5 10h5"/></svg>Example
+    </button>
+
+    <!-- DEV BUTTONS -->
+    <!-- <button class="tbtn" id="btn-add-example" onclick="addCurrentStateToExamples()" title="Add current canvas to examples">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg>Add Example
+    </button>
+    <button class="tbtn" id="btn-reset-example" onclick="resetExamples()" title="Clear saved examples">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M7 8v4M9 8v4"/></svg>Reset Example
+    </button> -->
+
     <div style="flex:1"></div>
     <button class="tbtn" id="btn-del" onclick="deleteSelected()" style="display:none;color:var(--color-text-danger)">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M7 8v4M9 8v4"/></svg>Delete
@@ -43,6 +55,7 @@
         <div class="pr"><span class="pl">X</span><input class="pi" type="number" id="px" onchange="applyP('x',this.value)"></div>
         <div class="pr"><span class="pl">Y</span><input class="pi" type="number" id="py" onchange="applyP('y',this.value)"></div>
       </div>
+      
       <div id="rp-multi" class="rps" style="display:none">
         <div class="rpt">Auto Layout</div>
         <button class="lbtn" onclick="autoLayout('row')">
@@ -55,6 +68,7 @@
         </button>
         <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px" id="mc"></div>
       </div>
+
       <div class="hb" id="rp-hint">
         <div style="font-weight:500;color:var(--color-text-secondary);margin-bottom:4px">Short Keys</div>
         <div><kbd>T</kbd> textbox &nbsp;<kbd>V</kbd> select</div>
@@ -64,6 +78,7 @@
         <div style="margin-top:4px;font-size:10px;opacity:.7">*name = magenta</div>
         <button class="mini-btn" onclick="resetLocalData()">Reset Local Data</button>
       </div>
+
     </div>
   </div>
 </div>
@@ -87,6 +102,8 @@ let instanceMenuEl=null;
 const GAP=8, PAD=12, TW=100, TH=40;
 const STORAGE_KEY='figma-mockup-state-v1';
 const THEME_KEY='figma-mockup-theme-v1';
+const EXAMPLES_KEY='figma-mockup-examples-v1';
+const EXAMPLE_INDEX_KEY='figma-mockup-example-index-v1';
 
 function isSpecial(n){return/^\*/.test(n||'');}
 function dispName(n){return(n||'').replace(/^\*/,'');}
@@ -143,36 +160,110 @@ function scheduleSaveState(){
   },120);
 }
 
+function applyState(data){
+  if(!data||!Array.isArray(data.elems)||!Array.isArray(data.frames))return false;
+
+  elems=data.elems;
+  frames=data.frames;
+  eid=typeof data.eid==='number'?data.eid:0;
+  fid=typeof data.fid==='number'?data.fid:0;
+
+  selIds.clear();
+  selFid=null;
+  document.querySelectorAll('.tb,.fr').forEach(el=>el.remove());
+
+  elems.forEach(o=>renderEl(o,false));
+  frames.forEach(f=>{
+    const fel=document.createElement('div');
+    fel.className='fr';
+    fel.id='fr-'+f.id;
+    fel.dataset.fid=f.id;
+    fel.style.left=f.x+'px';
+    fel.style.top=f.y+'px';
+    fel.style.width=f.w+'px';
+    fel.style.height=f.h+'px';
+    fel.innerHTML=`<div class="fr-label" id="frlbl-${f.id}">${f.name||('Frame '+f.id)}</div>`;
+    cv.insertBefore(fel, cv.firstChild);
+  });
+
+  updateSelVis();
+  updateLayers();
+  updateRP();
+  lastSavedState=serializeState();
+  return true;
+}
+
+function cloneState(data){
+  return JSON.parse(JSON.stringify(data));
+}
+
+function getCurrentStateSnapshot(){
+  return JSON.parse(serializeState());
+}
+
+function getExampleStates(){
+  try{
+    const raw=localStorage.getItem(EXAMPLES_KEY);
+    if(!raw)return [];
+    const list=JSON.parse(raw);
+    if(!Array.isArray(list))return [];
+    return list.filter(s=>s&&Array.isArray(s.elems)&&Array.isArray(s.frames));
+  }catch(err){
+    return [];
+  }
+}
+
+function saveExampleStates(states){
+  localStorage.setItem(EXAMPLES_KEY,JSON.stringify(states));
+}
+
 function restoreState(){
   try{
     const raw=localStorage.getItem(STORAGE_KEY);
     if(!raw)return;
     const data=JSON.parse(raw);
-    if(!data||!Array.isArray(data.elems)||!Array.isArray(data.frames))return;
+    applyState(data);
+  }catch(err){}
+}
 
-    elems=data.elems;
-    frames=data.frames;
-    eid=typeof data.eid==='number'?data.eid:0;
-    fid=typeof data.fid==='number'?data.fid:0;
+function loadExampleState(){
+  try{
+    const examples=getExampleStates();
+    if(!examples.length){
+      window.alert('No examples saved yet. Create something and click Add Example.');
+      return;
+    }
+    const rawIdx=parseInt(localStorage.getItem(EXAMPLE_INDEX_KEY)||'0',10);
+    const idx=isNaN(rawIdx)?0:((rawIdx%examples.length)+examples.length)%examples.length;
+    const selected=cloneState(examples[idx]);
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(selected));
+    applyState(selected);
+    localStorage.setItem(EXAMPLE_INDEX_KEY,String((idx+1)%examples.length));
+  }catch(err){}
+}
 
-    document.querySelectorAll('.tb,.fr').forEach(el=>el.remove());
-    elems.forEach(o=>renderEl(o,false));
-    frames.forEach(f=>{
-      const fel=document.createElement('div');
-      fel.className='fr';
-      fel.id='fr-'+f.id;
-      fel.dataset.fid=f.id;
-      fel.style.left=f.x+'px';
-      fel.style.top=f.y+'px';
-      fel.style.width=f.w+'px';
-      fel.style.height=f.h+'px';
-      fel.innerHTML=`<div class="fr-label" id="frlbl-${f.id}">${f.name||('Frame '+f.id)}</div>`;
-      cv.insertBefore(fel, cv.firstChild);
-    });
-    updateSelVis();
-    updateLayers();
-    updateRP();
-    lastSavedState=serializeState();
+function addCurrentStateToExamples(){
+  try{
+    const snapshot=getCurrentStateSnapshot();
+    if(!snapshot.elems.length&&!snapshot.frames.length){
+      window.alert('Canvas is empty. Create something first.');
+      return;
+    }
+    const examples=getExampleStates();
+    examples.push(snapshot);
+    saveExampleStates(examples);
+    localStorage.setItem(EXAMPLE_INDEX_KEY,String(examples.length-1));
+    window.alert('Added current canvas to examples.');
+  }catch(err){}
+}
+
+function resetExamples(){
+  const ok=window.confirm('Clear all saved examples?');
+  if(!ok)return;
+  try{
+    localStorage.removeItem(EXAMPLES_KEY);
+    localStorage.removeItem(EXAMPLE_INDEX_KEY);
+    window.alert('Saved examples cleared.');
   }catch(err){}
 }
 
@@ -242,6 +333,7 @@ function ensureFrameAstData(f, specials){
   if(!f.ast||!Array.isArray(f.ast.instances)){
     f.ast={selected:0,instances:[{name:'instance0',values:buildInstanceValues(specials)}]};
   }
+  if(typeof f.ast.previewAll!=='boolean')f.ast.previewAll=false;
   if(!f.ast.instances.length){
     f.ast.instances.push({name:'instance0',values:buildInstanceValues(specials)});
   }
@@ -429,6 +521,123 @@ function computeFrameAstResolvedValues(f,specials,inst){
 function getAstDisplayValue(rawValue, resolvedValue){
   if(looksLikeFormula(rawValue))return resolvedValue!=null?String(resolvedValue):'';
   return rawValue!=null?String(rawValue):'';
+}
+
+function computeInstancePreviewValues(f,specials,instIdx){
+  ensureFrameAstData(f,specials);
+  const inst=f.ast.instances[instIdx];
+  if(!inst)return {};
+
+  if(instIdx===0){
+    return computeFrameAstResolvedValues(f,specials,inst);
+  }
+
+  const inst0=f.ast.instances[0]||{values:{}};
+  const keyMap={};
+  specials.forEach(s=>{
+    const k=specialKey(s.name);
+    if(k&&!keyMap[k])keyMap[k]=s;
+  });
+
+  const resolved={};
+  specials.forEach(s=>{
+    const inst0Raw=inst0.values&&inst0.values[s.id]!=null?String(inst0.values[s.id]):'';
+    if(looksLikeFormula(inst0Raw)){
+      resolved[s.id]=evalFormulaExpression(inst0Raw,refName=>{
+        const target=keyMap[(refName||'').toLowerCase()];
+        if(!target)return 0;
+        const targetVal=inst.values&&inst.values[target.id]!=null?String(inst.values[target.id]):'';
+        const num=parseFloat(targetVal);
+        return isFinite(num)?num:0;
+      });
+    }else{
+      resolved[s.id]=inst.values&&inst.values[s.id]!=null?String(inst.values[s.id]):'';
+    }
+  });
+  return resolved;
+}
+
+function collectFrameTreeIds(f, bag){
+  bag.frameIds.push(f.id);
+  f.children.forEach(c=>{
+    if(c.isFrame){
+      const cf=getFr(c.id);
+      if(cf)collectFrameTreeIds(cf,bag);
+      return;
+    }
+    bag.elemIds.push(c.id);
+  });
+}
+
+function clearPreviewRows(){
+  document.querySelectorAll('.fr-preview-all').forEach(el=>el.remove());
+}
+
+function renderFramePreviewRows(f,specials){
+  if(!f.ast||!f.ast.previewAll||!f.ast.instances||f.ast.instances.length<=1)return;
+
+  const ids={frameIds:[],elemIds:[]};
+  collectFrameTreeIds(f,ids);
+  const specialSet=new Set(specials.map(s=>s.id));
+  const baseX=f.x;
+
+  for(let instIdx=1;instIdx<f.ast.instances.length;instIdx+=1){
+    // instaces gap
+    const offsetX=(f.w+40)*instIdx;
+    const resolvedMap=computeInstancePreviewValues(f,specials,instIdx);
+
+    ids.frameIds.forEach(frameId=>{
+      const srcFrame=getFr(frameId);
+      const srcEl=document.getElementById('fr-'+frameId);
+      if(!srcFrame||!srcEl)return;
+
+      const frameClone=srcEl.cloneNode(true);
+      frameClone.classList.remove('sel');
+      frameClone.classList.add('fr-preview-all');
+      frameClone.removeAttribute('id');
+      delete frameClone.dataset.fid;
+      frameClone.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      frameClone.querySelectorAll('.fr-ast').forEach(node=>node.remove());
+      frameClone.style.left=(srcFrame.x-baseX+f.x+offsetX)+'px';
+      frameClone.style.top=srcFrame.y+'px';
+      frameClone.style.width=srcFrame.w+'px';
+      frameClone.style.height=srcFrame.h+'px';
+      frameClone.style.zIndex='999';
+      frameClone.style.pointerEvents='none';
+      cv.appendChild(frameClone);
+    });
+
+    ids.elemIds.forEach(elemId=>{
+      const srcElem=getEl(elemId);
+      const srcEl=document.getElementById('el-'+elemId);
+      if(!srcElem||!srcEl)return;
+
+      const elemClone=srcEl.cloneNode(true);
+      elemClone.classList.remove('sel');
+      elemClone.classList.add('fr-preview-all');
+      elemClone.removeAttribute('id');
+      delete elemClone.dataset.id;
+      elemClone.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      elemClone.style.left=(srcElem.x-baseX+f.x+offsetX)+'px';
+      elemClone.style.top=srcElem.y+'px';
+      elemClone.style.width=srcElem.w+'px';
+      elemClone.style.height=srcElem.h+'px';
+      elemClone.style.zIndex='999';
+      elemClone.style.pointerEvents='none';
+
+      const ta=elemClone.querySelector('textarea');
+      if(ta){
+        if(specialSet.has(elemId)){
+          ta.value=resolvedMap[elemId]!=null?String(resolvedMap[elemId]):'';
+        }else{
+          ta.value=srcElem.text||'';
+        }
+        ta.readOnly=true;
+      }
+
+      cv.appendChild(elemClone);
+    });
+  }
 }
 
 // Check if instance0 has a formula for a given element
@@ -1021,6 +1230,7 @@ function renderFrameLayer(container,f,depth,trail,inheritedSel){
 
 function refreshAstOverlays(){
   document.querySelectorAll('.fr-ast').forEach(el=>el.remove());
+  clearPreviewRows();
   const childFrameIds=new Set(frames.flatMap(fr=>fr.children.filter(c=>c.isFrame).map(c=>c.id)));
   const topFrames=frames.filter(f=>!childFrameIds.has(f.id));
 
@@ -1032,6 +1242,7 @@ function refreshAstOverlays(){
     const specials=collectSpecial(f);
     if(!specials.length)return;
     ensureFrameAstData(f,specials);
+    if(f.ast.previewAll&&f.ast.selected!==0)f.ast.selected=0;
     applyFrameAstInstance(f);
     const frameEl=document.getElementById('fr-'+f.id);
     if(!frameEl)return;
@@ -1054,13 +1265,49 @@ function refreshAstOverlays(){
     });
     picker.value=String(f.ast.selected);
     picker.addEventListener('change',()=>{
-      f.ast.selected=+picker.value;
+      const next=+picker.value;
+      f.ast.selected=f.ast.previewAll?0:next;
+      if(f.ast.previewAll)picker.value='0';
       applyFrameAstInstance(f);
       refreshAstOverlays();
       scheduleSaveState();
     });
+
+    const controls=document.createElement('div');
+    controls.className='fr-ast-top-controls';
+    controls.appendChild(picker);
+
+    const previewToggleWrap=document.createElement('div');
+    previewToggleWrap.className='fr-ast-toggle';
+    const previewToggle=document.createElement('button');
+    previewToggle.type='button';
+    previewToggle.className='fr-ast-toggle-btn';
+    previewToggle.setAttribute('role','switch');
+    previewToggle.setAttribute('aria-label','Preview all instances');
+    const syncPreviewToggle=()=>{
+      previewToggle.setAttribute('aria-checked',f.ast.previewAll?'true':'false');
+      previewToggle.classList.toggle('on',!!f.ast.previewAll);
+    };
+    syncPreviewToggle();
+    previewToggle.addEventListener('click',()=>{
+      f.ast.previewAll=!f.ast.previewAll;
+      syncPreviewToggle();
+      if(f.ast.previewAll&&f.ast.selected!==0){
+        f.ast.selected=0;
+      }
+      applyFrameAstInstance(f);
+      refreshAstOverlays();
+      scheduleSaveState();
+    });
+    const previewToggleText=document.createElement('span');
+    previewToggleText.className='caption';
+    previewToggleText.textContent='Preview All';
+    previewToggleWrap.appendChild(previewToggle);
+    previewToggleWrap.appendChild(previewToggleText);
+    controls.appendChild(previewToggleWrap);
+
     topBar.appendChild(topLbl);
-    topBar.appendChild(picker);
+    topBar.appendChild(controls);
     panel.appendChild(topBar);
 
     const grid=document.createElement('div');
@@ -1309,6 +1556,7 @@ function refreshAstOverlays(){
     const panelHeight=panel.offsetHeight;
     panel.style.top=-(panelHeight + 24)+'px';
     // if(frameLabel)frameLabel.style.top=-(panelHeight+40)+'px';
+    renderFramePreviewRows(f,specials);
   });
 }
 
